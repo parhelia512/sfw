@@ -90,7 +90,6 @@ def process_command(name, value):
         with open(file_path, "r") as file:
             res = "#line 1 \"" + value + "\"\n"
             res += process_file(file.read())
-            res += "#line 0"
             return res
     elif name == "FILEINLINE":
         file_path = os.path.join(input_path, value)
