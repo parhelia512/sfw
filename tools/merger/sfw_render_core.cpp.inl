@@ -231,21 +231,13 @@
 {{FILE:sfw/core/ucaps.h}}
 
 //--STRIP
-//#include "core/mutex.h"
-//--STRIP
-{{FILE:sfw/core/mutex.cpp}}
-//--STRIP
 //#if defined(DEBUG_ENABLED) && !defined(NO_THREADS)
 //#include "core/safe_refcount.h"
 //#include "core/error/error_macros.h"
+//#define WIN32_LEAN_AND_MEAN
+//#include <windows.h>
 //--STRIP
 {{FILE:sfw/core/safe_refcount.cpp}}
-//--STRIP
-//#include "thread.h"
-//#include "core/error_macros.h"
-//#include "core/safe_refcount.h"
-//--STRIP
-{{FILE:sfw/core/thread.cpp}}
 
 //--STRIP
 //#include "core/memory.h"
@@ -256,6 +248,36 @@
 //--STRIP
 //{//{//FILE:sfw/core/old/directory.cpp}}
 //--STRIP
+
+//--STRIP
+//#include "core/mutex.h"
+//#include "core/memory.h"
+//#if defined(_WIN64) || defined(_WIN32)
+//#define WIN32_LEAN_AND_MEAN
+//#include <windows.h>
+//#endif
+//--STRIP
+{{FILE:sfw/core/mutex.cpp}}
+//--STRIP
+//#include "rw_lock.h"
+//#include "core/memory.h"
+//#if defined(_WIN64) || defined(_WIN32)
+//#define WIN32_LEAN_AND_MEAN
+//#include <windows.h>
+//#endif
+//--STRIP
+{{FILE:sfw/core/rw_lock.cpp}}
+//--STRIP
+//#include "semaphore.h"
+//#include "core/memory.h"
+//#if !defined(NO_THREADS)
+//#if defined(_WIN64) || defined(_WIN32)
+//#define WIN32_LEAN_AND_MEAN
+//#include <windows.h>
+//#endif
+//#endif
+//--STRIP
+{{FILE:sfw/core/semaphore.cpp}}
 
 //--STRIP
 //#include "core/pool_vector.h"
@@ -289,6 +311,20 @@
 //#include "ucaps.h"
 //--STRIP
 {{FILE:sfw/core/ustring.cpp}}
+
+//--STRIP
+//#include "thread.h"
+//#include "core/error_macros.h"
+//#include "core/safe_refcount.h"
+//#include "core/memory.h"
+//#include "core/ustring.h"
+//#if defined(_WIN64) || defined(_WIN32)
+//#define WIN32_LEAN_AND_MEAN
+//#include <windows.h>
+//#endif
+//--STRIP
+{{FILE:sfw/core/thread.cpp}}
+
 //--STRIP
 //#include "core/logger.h"
 //#include "core/ustring.h"

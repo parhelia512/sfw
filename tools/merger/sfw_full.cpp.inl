@@ -325,7 +325,6 @@
 //--STRIP
 {{FILE:sfw/core/thread.cpp}}
 
-
 //--STRIP
 //#include "core/logger.h"
 //#include "core/ustring.h"

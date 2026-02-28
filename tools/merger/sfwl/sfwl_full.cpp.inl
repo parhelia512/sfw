@@ -33,21 +33,13 @@
 {{FILE:sfwl/core/ucaps.h}}
 
 //--STRIP
-//#include "core/mutex.h"
-//--STRIP
-{{FILE:sfwl/core/mutex.cpp}}
-//--STRIP
 //#if defined(DEBUG_ENABLED) && !defined(NO_THREADS)
 //#include "core/safe_refcount.h"
 //#include "core/error/error_macros.h"
+//#define WIN32_LEAN_AND_MEAN
+//#include <windows.h>
 //--STRIP
 {{FILE:sfwl/core/safe_refcount.cpp}}
-//--STRIP
-//#include "thread.h"
-//#include "core/error_macros.h"
-//#include "core/safe_refcount.h"
-//--STRIP
-{{FILE:sfwl/core/thread.cpp}}
 
 //--STRIP
 //#include "core/memory.h"
@@ -58,6 +50,36 @@
 //--STRIP
 //{//{//FILE:sfwl/core/old/directory.cpp}}
 //--STRIP
+
+//--STRIP
+//#include "core/mutex.h"
+//#include "core/memory.h"
+//#if defined(_WIN64) || defined(_WIN32)
+//#define WIN32_LEAN_AND_MEAN
+//#include <windows.h>
+//#endif
+//--STRIP
+{{FILE:sfwl/core/mutex.cpp}}
+//--STRIP
+//#include "rw_lock.h"
+//#include "core/memory.h"
+//#if defined(_WIN64) || defined(_WIN32)
+//#define WIN32_LEAN_AND_MEAN
+//#include <windows.h>
+//#endif
+//--STRIP
+{{FILE:sfwl/core/rw_lock.cpp}}
+//--STRIP
+//#include "semaphore.h"
+//#include "core/memory.h"
+//#if !defined(NO_THREADS)
+//#if defined(_WIN64) || defined(_WIN32)
+//#define WIN32_LEAN_AND_MEAN
+//#include <windows.h>
+//#endif
+//#endif
+//--STRIP
+{{FILE:sfwl/core/semaphore.cpp}}
 
 //--STRIP
 //#include "core/pool_vector.h"
@@ -91,6 +113,20 @@
 //#include "ucaps.h"
 //--STRIP
 {{FILE:sfwl/core/ustring.cpp}}
+
+//--STRIP
+//#include "thread.h"
+//#include "core/error_macros.h"
+//#include "core/safe_refcount.h"
+//#include "core/memory.h"
+//#include "core/ustring.h"
+//#if defined(_WIN64) || defined(_WIN32)
+//#define WIN32_LEAN_AND_MEAN
+//#include <windows.h>
+//#endif
+//--STRIP
+{{FILE:sfwl/core/thread.cpp}}
+
 //--STRIP
 //#include "core/logger.h"
 //#include "core/ustring.h"
@@ -129,7 +165,7 @@
 //#include "string_builder.h"
 //#include <string.h>
 //--STRIP
-{{FILE:sfw/core/string_builder.cpp}}
+{{FILE:sfwl/core/string_builder.cpp}}
 
 //--STRIP
 //#include "file_access.h"
