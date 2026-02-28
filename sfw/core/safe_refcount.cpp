@@ -5,15 +5,17 @@
 
 #if !defined(NO_THREADS) && defined(_MSC_VER)
 
+//--STRIP
 #include "safe_refcount.h"
 #include "core/error/error_macros.h"
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+//--STRIP
 
 // TODO these methods should use compiler intrinsics.
 // If possible they should be moved to the header if windows.h doesn't need to be included.
 // Also the gcc versions should have an option to use the newer __atomics.
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 #define ATOMIC_CONDITIONAL_INCREMENT_BODY(m_pw, m_win_type, m_win_cmpxchg, m_cpp_type) \
 	/* try to increment until it actually works */                                     \
