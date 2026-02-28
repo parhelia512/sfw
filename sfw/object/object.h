@@ -13,6 +13,9 @@
 #include "object/variant.h"
 
 #include "object/dictionary.h"
+
+// TODO remove
+#include <atomic>
 //--STRIP
 
 /*************************************************************************/
