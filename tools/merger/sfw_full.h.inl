@@ -22,6 +22,28 @@
 #include <string.h>
 #include <stddef.h>
 
+#if !defined(NO_THREADS)
+
+#if defined(_WIN64) || defined(_WIN32)
+// Headers are in the .ccp file for windows
+#elif defined(__APPLE__)
+
+#include <pthread.h>
+#include <sys/types.h>
+#include <dispatch/dispatch.h>
+#include <errno.h>
+
+#else
+
+#include <pthread.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <semaphore.h>
+
+#endif
+
+#endif //!defined(NO_THREADS)
+
 //===================  CORE SECTION  ===================
 
 //--STRIP
@@ -57,11 +79,17 @@
 //#include "core/typedefs.h"
 //--STRIP
 {{FILE:sfw/core/safe_refcount.h}}
+
 //--STRIP
 //#include "core/typedefs.h"
 //#if !defined(NO_THREADS)
 //#include "core/safe_refcount.h"
-//#include <thread>
+//#endif
+//#if !defined(NO_THREADS)
+//#if !defined(_WIN64) && !defined(_WIN32)
+//#include <pthread.h>
+//#include <sys/types.h>
+//#endif
 //#endif
 //--STRIP
 {{FILE:sfw/core/thread.h}}
@@ -72,25 +100,36 @@
 //--STRIP
 {{FILE:sfw/core/error_macros.h}}
 
-
 //--STRIP
 //#include "core/error_macros.h"
 //#include "core/safe_refcount.h"
 //--STRIP
 {{FILE:sfw/core/memory.h}}
 
-
 //--STRIP
 //#include "core/error_list.h"
 //#include "core/typedefs.h"
+//#if !defined(NO_THREADS)
+//#if !defined(_WIN64) && !defined(_WIN32)
+//#include <pthread.h>
+//#endif
+//#endif
 //--STRIP
 {{FILE:sfw/core/mutex.h}}
 //--STRIP
 //#include "core/error_list.h"
+//#include "core/typedefs.h"
+//#include "core/error_macros.h"
+//#if !defined(NO_THREADS)
+//#if !defined(_WIN64) && !defined(_WIN32)
+//#include <pthread.h>
+//#endif
+//#endif
 //--STRIP
 {{FILE:sfw/core/rw_lock.h}}
 //--STRIP
 //#include "core/typedefs.h"
+//#include "core/safe_refcount.h"
 //--STRIP
 {{FILE:sfw/core/spin_lock.h}}
 //--STRIP
@@ -98,6 +137,22 @@
 //--STRIP
 {{FILE:sfw/core/thread_safe.h}}
 
+//--STRIP
+//#include "core/error_list.h"
+//#include "core/error_macros.h"
+//#include "core/typedefs.h"
+//#if !defined(NO_THREADS)
+//#if defined(_WIN64) || defined(_WIN32)
+//#elif defined(__APPLE__)
+//#include <dispatch/dispatch.h>
+//#include <errno.h>
+//#else
+//
+//#include <errno.h>
+//#include <semaphore.h>
+//#endif
+//#endif
+//--STRIP
 {{FILE:sfw/core/semaphore.h}}
 
 //--STRIP
