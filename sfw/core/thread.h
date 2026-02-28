@@ -14,7 +14,6 @@
 #if !defined(NO_THREADS)
 #include "core/safe_refcount.h"
 #endif
-//--STRIP
 
 #if !defined(NO_THREADS)
 
@@ -24,6 +23,9 @@
 #endif
 
 #endif
+
+//--STRIP
+
 
 class String;
 
