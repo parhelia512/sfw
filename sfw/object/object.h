@@ -13,9 +13,6 @@
 #include "object/variant.h"
 
 #include "object/dictionary.h"
-
-// TODO remove
-#include <atomic>
 //--STRIP
 
 /*************************************************************************/
@@ -233,7 +230,7 @@ protected:
 	mutable const StringName *_class_ptr;
 
 	ObjectID _instance_id;
-	std::atomic<ObjectRC *> _rc;
+	SafePointer<ObjectRC *> _rc;
 
 	Dictionary metadata;
 };

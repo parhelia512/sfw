@@ -114,13 +114,25 @@ void Object::cancel_free() {
 }
 
 Object::Object() {
+	_class_ptr = nullptr;
 	_is_queued_for_deletion = false;
 	_predelete_ok = 0;
 	_instance_id = 0;
 	_instance_id = ObjectDB::add_instance(this);
+	_rc.set(nullptr);
 }
 
 Object::~Object() {
+	ObjectRC *rc = _rc.get();
+	if (rc) {
+		if (rc->invalidate()) {
+			memdelete(rc);
+		}
+	}
+
+	ObjectDB::remove_instance(this);
+	_instance_id = 0;
+	_predelete_ok = 2;
 }
 
 ObjectRC *Object::_use_rc() {
@@ -134,10 +146,11 @@ ObjectRC *Object::_use_rc() {
 
 	ObjectRC *rc = nullptr;
 	ObjectRC *const creating = reinterpret_cast<ObjectRC *>(1);
-	if (unlikely(_rc.compare_exchange_strong(rc, creating, std::memory_order_acq_rel))) {
+
+	if (unlikely(_rc.compare_exchange_strong(rc, creating))) {
 		// Not created yet
 		rc = memnew(ObjectRC(this));
-		_rc.store(rc, std::memory_order_release);
+		_rc.set(rc);
 		return rc;
 	}
 
@@ -147,7 +160,7 @@ ObjectRC *Object::_use_rc() {
 			rc->increment();
 			return rc;
 		}
-		rc = _rc.load(std::memory_order_acquire);
+		rc = _rc.get();
 	}
 }
 
