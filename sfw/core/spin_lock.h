@@ -9,22 +9,22 @@
 /*************************************************************************/
 
 //--STRIP
+#include "core/safe_refcount.h"
 #include "core/typedefs.h"
-
-#include <atomic>
 //--STRIP
 
 class SpinLock {
-	std::atomic_flag locked = ATOMIC_FLAG_INIT;
+	SafeFlag _flag;
 
 public:
 	_ALWAYS_INLINE_ void lock() {
-		while (locked.test_and_set(std::memory_order_acquire)) {
+		while (!_flag.test_and_set()) {
 			;
 		}
 	}
+
 	_ALWAYS_INLINE_ void unlock() {
-		locked.clear(std::memory_order_release);
+		_flag.clear();
 	}
 };
 
