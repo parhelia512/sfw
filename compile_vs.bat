@@ -40,6 +40,8 @@ cl /D_REENTRANT /EHsc /Zi /Isfw /c sfw/core/dir_access.cpp /Fo:sfw/core/dir_acce
 cl /D_REENTRANT /EHsc /Zi /Isfw /c sfw/core/pool_vector.cpp /Fo:sfw/core/pool_vector.obj
 cl /D_REENTRANT /EHsc /Zi /Isfw /c sfw/core/pool_allocator.cpp /Fo:sfw/core/pool_allocator.obj
 cl /D_REENTRANT /EHsc /Zi /Isfw /c sfw/core/mutex.cpp /Fo:sfw/core/mutex.obj
+cl /D_REENTRANT /EHsc /Zi /Isfw /c sfw/core/rw_lock.cpp /Fo:sfw/core/rw_lock.obj
+cl /D_REENTRANT /EHsc /Zi /Isfw /c sfw/core/semaphone.cpp /Fo:sfw/core/semaphone.obj
 cl /D_REENTRANT /EHsc /Zi /Isfw /c sfw/core/sfw_time.cpp /Fo:sfw/core/sfw_time.obj
 cl /D_REENTRANT /EHsc /Zi /Isfw /c sfw/core/string_builder.cpp /Fo:sfw/core/string_builder.obj
 
@@ -120,6 +122,7 @@ cl /D_REENTRANT /Zi ^
 		sfw/core/vector3i.obj sfw/core/vector4.obj sfw/core/vector4i.obj ^
 		sfw/core/pool_vector.obj sfw/core/pool_allocator.obj sfw/core/mutex.obj sfw/core/sfw_time.obj ^
 		sfw/core/string_builder.obj ^
+		sfw/core/rw_lock.obj sfw/core/semaphore.obj ^
 		sfw/core/dir_access.obj sfw/core/file_access.obj sfw/core/thread.obj ^
 		sfw/core/socket.obj sfw/core/inet_address.obj ^
 		sfw/core/sub_process.obj ^

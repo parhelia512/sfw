@@ -45,6 +45,8 @@ clang++ $args -D_REENTRANT -g -Isfw -c sfw/core/dir_access.cpp -o sfw/core/dir_a
 clang++ $args -D_REENTRANT -g -Isfw -c sfw/core/pool_vector.cpp -o sfw/core/pool_vector.o
 clang++ $args -D_REENTRANT -g -Isfw -c sfw/core/pool_allocator.cpp -o sfw/core/pool_allocator.o
 clang++ $args -D_REENTRANT -g -Isfw -c sfw/core/mutex.cpp -o sfw/core/mutex.o
+clang++ $args -D_REENTRANT -g -Isfw -c sfw/core/rw_lock.cpp -o sfw/core/rw_lock.o
+clang++ $args -D_REENTRANT -g -Isfw -c sfw/core/semaphore.cpp -o sfw/core/semaphore.o
 clang++ $args -D_REENTRANT -g -Isfw -c sfw/core/sfw_time.cpp -o sfw/core/sfw_time.o
 clang++ $args -D_REENTRANT -g -Isfw -c sfw/core/string_builder.cpp -o sfw/core/string_builder.o
 
@@ -119,6 +121,7 @@ clang++ $args -D_REENTRANT -g sfw/core/aabb.o sfw/core/basis.o sfw/core/color.o 
                         sfw/core/memory.o sfw/core/pcg.o sfw/core/plane.o sfw/core/projection.o sfw/core/quaternion.o sfw/core/random_pcg.o \
                         sfw/core/rect2.o sfw/core/rect2i.o sfw/core/safe_refcount.o sfw/core/transform_2d.o sfw/core/transform.o \
                         sfw/core/ustring.o sfw/core/string_name.o \
+                        sfw/core/rw_lock.o sfw/core/semaphore.o \
                         sfw/core/vector2.o sfw/core/vector2i.o sfw/core/vector3.o \
                         sfw/core/vector3i.o sfw/core/vector4.o sfw/core/vector4i.o \
                         sfw/core/pool_vector.o sfw/core/pool_allocator.o sfw/core/mutex.o sfw/core/sfw_time.o \

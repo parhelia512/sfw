@@ -34,6 +34,8 @@ ccache g++ -Wall -D_REENTRANT -g -Isfw -c sfw/core/dir_access.cpp -o sfw/core/di
 ccache g++ -Wall -D_REENTRANT -g -Isfw -c sfw/core/pool_vector.cpp -o sfw/core/pool_vector.o
 ccache g++ -Wall -D_REENTRANT -g -Isfw -c sfw/core/pool_allocator.cpp -o sfw/core/pool_allocator.o
 ccache g++ -Wall -D_REENTRANT -g -Isfw -c sfw/core/mutex.cpp -o sfw/core/mutex.o
+ccache g++ -Wall -D_REENTRANT -g -Isfw -c sfw/core/rw_lock.cpp -o sfw/core/rw_lock.o
+ccache g++ -Wall -D_REENTRANT -g -Isfw -c sfw/core/semaphore.cpp -o sfw/core/semaphore.o
 ccache g++ -Wall -D_REENTRANT -g -Isfw -c sfw/core/sfw_time.cpp -o sfw/core/sfw_time.o
 ccache g++ -Wall -D_REENTRANT -g -Isfw -c sfw/core/string_builder.cpp -o sfw/core/string_builder.o
 
@@ -110,6 +112,7 @@ ccache g++ -Wall \
                         sfw/core/vector2.o sfw/core/vector2i.o sfw/core/vector3.o \
                         sfw/core/vector3i.o sfw/core/vector4.o sfw/core/vector4i.o \
                         sfw/core/pool_vector.o sfw/core/pool_allocator.o sfw/core/mutex.o sfw/core/sfw_time.o \
+												sfw/core/rw_lock.o sfw/core/semaphore.o \
 												sfw/core/string_builder.o \
                         sfw/core/dir_access.o sfw/core/file_access.o sfw/core/thread.o \
                         sfw/core/socket.o sfw/core/inet_address.o \

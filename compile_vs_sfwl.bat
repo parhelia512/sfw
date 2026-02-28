@@ -26,6 +26,8 @@ cl /D_REENTRANT /EHsc /Zi /Isfwl /c sfwl/core/dir_access.cpp /Fo:sfwl/core/dir_a
 cl /D_REENTRANT /EHsc /Zi /Isfwl /c sfwl/core/pool_vector.cpp /Fo:sfwl/core/pool_vector.obj
 cl /D_REENTRANT /EHsc /Zi /Isfwl /c sfwl/core/pool_allocator.cpp /Fo:sfwl/core/pool_allocator.obj
 cl /D_REENTRANT /EHsc /Zi /Isfwl /c sfwl/core/mutex.cpp /Fo:sfwl/core/mutex.obj
+cl /D_REENTRANT /EHsc /Zi /Isfwl /c sfwl/core/rw_lock.cpp /Fo:sfwl/core/rw_lock.obj
+cl /D_REENTRANT /EHsc /Zi /Isfwl /c sfwl/core/semaphore.cpp /Fo:sfwl/core/semaphore.obj
 cl /D_REENTRANT /EHsc /Zi /Isfwl /c sfwl/core/sfw_time.cpp /Fo:sfwl/core/sfw_time.obj
 cl /D_REENTRANT /EHsc /Zi /Isfwl /c sfwl/core/string_builder.cpp /Fo:sfwl/core/string_builder.obj
 
@@ -63,6 +65,7 @@ cl /D_REENTRANT /Zi ^
 		sfwl/core/ustring.obj sfwl/core/string_name.obj ^
 		sfwl/core/vector2i.obj ^
 		sfwl/core/pool_vector.obj sfwl/core/pool_allocator.obj sfwl/core/mutex.obj sfwl/core/sfw_time.obj ^
+		sfwl/core/rw_lock.obj sfwl/core/semaphore.obj ^
 		sfwl/core/string_builder.obj ^
 		sfwl/core/dir_access.obj sfwl/core/file_access.obj sfwl/core/thread.obj ^
 		sfwl/core/socket.obj sfwl/core/inet_address.obj ^
