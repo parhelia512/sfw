@@ -3,20 +3,160 @@
 /*  From https://github.com/Relintai/pandemonium_engine (MIT)            */
 /*************************************************************************/
 
-#if defined(DEBUG_ENABLED) && !defined(NO_THREADS)
+#if !defined(NO_THREADS) && defined(_MSC_VER)
 
-//--STRIP
-#include "core/safe_refcount.h"
-
+#include "safe_refcount.h"
 #include "core/error/error_macros.h"
-//--STRIP
 
-// On C++14 we don't have std::atomic::is_always_lockfree, so this is the best we can do
-void check_lockless_atomics() {
-	// Doing the check for the types we actually care about
-	if (!std::atomic<uint32_t>{}.is_lock_free() || !std::atomic<uint64_t>{}.is_lock_free() || !std::atomic_bool{}.is_lock_free()) {
-		LOG_WARN("Your compiler doesn't seem to support lockless atomics. Performance will be degraded. Please consider upgrading to a different or newer compiler.");
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
+#define ATOMIC_CONDITIONAL_INCREMENT_BODY(m_pw, m_win_type, m_win_cmpxchg, m_cpp_type) \
+	/* try to increment until it actually works */                                     \
+	/* taken from boost */                                                             \
+	while (true) {                                                                     \
+		m_cpp_type tmp = static_cast<m_cpp_type const volatile &>(*(m_pw));            \
+		if (tmp == 0)                                                                  \
+			return 0; /* if zero, can't add to it anymore */                           \
+		if (m_win_cmpxchg((m_win_type volatile *)(m_pw), tmp + 1, tmp) == tmp)         \
+			return tmp + 1;                                                            \
 	}
+
+#define ATOMIC_EXCHANGE_IF_GREATER_BODY(m_pw, m_val, m_win_type, m_win_cmpxchg, m_cpp_type) \
+	while (true) {                                                                          \
+		m_cpp_type tmp = static_cast<m_cpp_type const volatile &>(*(m_pw));                 \
+		if (tmp >= m_val)                                                                   \
+			return tmp; /* already greater, or equal */                                     \
+		if (m_win_cmpxchg((m_win_type volatile *)(m_pw), m_val, tmp) == tmp)                \
+			return m_val;                                                                   \
+	}
+
+void atomic_set(volatile uint32_t *ptarget, volatile uint32_t pw) {
+	InterlockedExchange((LONG volatile *)ptarget, pw);
+}
+uint32_t atomic_add(volatile uint32_t *pw, volatile uint32_t val) {
+	return InterlockedAdd((LONG volatile *)pw, val) + val;
+}
+uint32_t atomic_post_add(volatile uint32_t *pw, volatile uint32_t val) {
+	return InterlockedAdd((LONG volatile *)pw, val);
+}
+uint32_t atomic_sub(volatile uint32_t *pw, volatile uint32_t val) {
+	return InterlockedExchangeAdd((LONG volatile *)pw, -(int32_t)val) - val;
+}
+uint32_t atomic_post_sub(volatile uint32_t *pw, volatile uint32_t val) {
+	return InterlockedExchangeAdd((LONG volatile *)pw, -(int32_t)val);
+}
+uint32_t atomic_exchange_if_greater(volatile uint32_t *pw, volatile uint32_t val){
+	ATOMIC_EXCHANGE_IF_GREATER_BODY(pw, val, LONG, InterlockedCompareExchange, uint32_t)
+} uint32_t atomic_conditional_increment(volatile uint32_t *pw) {
+	ATOMIC_CONDITIONAL_INCREMENT_BODY(pw, LONG, InterlockedCompareExchange, uint32_t)
+}
+bool atomic_bool_compare_and_swap(volatile uint32_t *pw, volatile uint32_t oldval, volatile uint32_t newval) {
+	uint32_t val = InterlockedCompareExchange((LONG volatile *)pw, newval, oldval);
+
+	return val == oldval;
+}
+uint32_t atomic_val_compare_and_swap(volatile uint32_t *pw, volatile uint32_t oldval, volatile uint32_t newval) {
+	return InterlockedCompareExchange((LONG volatile *)pw, newval, oldval);
+}
+
+void atomic_set(volatile int32_t *ptarget, volatile int32_t pw) {
+	InterlockedExchange((LONG volatile *)ptarget, pw);
+}
+int32_t atomic_add(volatile int32_t *pw, volatile int32_t val) {
+	return InterlockedAdd((LONG volatile *)pw, val) + val;
+}
+int32_t atomic_post_add(volatile int32_t *pw, volatile int32_t val) {
+	return InterlockedAdd((LONG volatile *)pw, val);
+}
+int32_t atomic_sub(volatile int32_t *pw, volatile int32_t val) {
+	return InterlockedExchangeAdd((LONG volatile *)pw, -(int32_t)val) - val;
+}
+int32_t atomic_post_sub(volatile int32_t *pw, volatile int32_t val) {
+	return InterlockedExchangeAdd((LONG volatile *)pw, -(int32_t)val);
+}
+int32_t atomic_exchange_if_greater(volatile int32_t *pw, volatile int32_t val){
+	ATOMIC_EXCHANGE_IF_GREATER_BODY(pw, val, LONG, InterlockedCompareExchange, int32_t)
+} int32_t atomic_conditional_increment(volatile int32_t *pw) {
+	ATOMIC_CONDITIONAL_INCREMENT_BODY(pw, LONG, InterlockedCompareExchange, int32_t)
+}
+bool atomic_bool_compare_and_swap(volatile int32_t *pw, volatile int32_t oldval, volatile int32_t newval) {
+	int32_t val = InterlockedCompareExchange((LONG volatile *)pw, newval, oldval);
+
+	return val == oldval;
+}
+int32_t atomic_val_compare_and_swap(volatile int32_t *pw, volatile int32_t oldval, volatile int32_t newval) {
+	return InterlockedCompareExchange((LONG volatile *)pw, newval, oldval);
+}
+
+void atomic_set(volatile uint64_t *ptarget, volatile uint64_t pw) {
+	InterlockedExchange64((LONGLONG volatile *)ptarget, pw);
+}
+uint64_t atomic_add(volatile uint64_t *pw, volatile uint64_t val) {
+	return InterlockedAdd64((LONGLONG volatile *)pw, val) + val;
+}
+uint64_t atomic_post_add(volatile uint64_t *pw, volatile uint64_t val) {
+	return InterlockedAdd64((LONGLONG volatile *)pw, val);
+}
+uint64_t atomic_sub(volatile uint64_t *pw, volatile uint64_t val) {
+	return InterlockedExchangeAdd64((LONGLONG volatile *)pw, -(int64_t)val) - val;
+}
+uint64_t atomic_post_sub(volatile uint64_t *pw, volatile uint64_t val) {
+	return InterlockedExchangeAdd64((LONGLONG volatile *)pw, -(int64_t)val);
+}
+uint64_t atomic_exchange_if_greater(volatile uint64_t *pw, volatile uint64_t val){
+	ATOMIC_EXCHANGE_IF_GREATER_BODY(pw, val, LONGLONG, InterlockedCompareExchange64, uint64_t)
+} uint64_t atomic_conditional_increment(volatile uint64_t *pw) {
+	ATOMIC_CONDITIONAL_INCREMENT_BODY(pw, LONGLONG, InterlockedCompareExchange64, uint64_t)
+}
+bool atomic_bool_compare_and_swap(volatile uint64_t *pw, volatile uint64_t oldval, volatile uint64_t newval) {
+	uint64_t val = InterlockedCompareExchange64((LONGLONG volatile *)pw, newval, oldval);
+
+	return val == oldval;
+}
+uint64_t atomic_val_compare_and_swap(volatile uint64_t *pw, volatile uint64_t oldval, volatile uint64_t newval) {
+	return InterlockedCompareExchange64((LONGLONG volatile *)pw, newval, oldval);
+}
+
+void atomic_set(volatile int64_t *ptarget, volatile int64_t pw) {
+	InterlockedExchange64((LONGLONG volatile *)ptarget, pw);
+}
+int64_t atomic_add(volatile int64_t *pw, volatile int64_t val) {
+	return InterlockedAdd64((LONGLONG volatile *)pw, val) + val;
+}
+int64_t atomic_post_add(volatile int64_t *pw, volatile int64_t val) {
+	return InterlockedAdd64((LONGLONG volatile *)pw, val);
+}
+int64_t atomic_sub(volatile int64_t *pw, volatile int64_t val) {
+	return InterlockedExchangeAdd64((LONGLONG volatile *)pw, -val) - val;
+}
+int64_t atomic_post_sub(volatile int64_t *pw, volatile int64_t val) {
+	return InterlockedExchangeAdd64((LONGLONG volatile *)pw, -val);
+}
+int64_t atomic_exchange_if_greater(volatile int64_t *pw, volatile int64_t val){
+	ATOMIC_EXCHANGE_IF_GREATER_BODY(pw, val, LONGLONG, InterlockedCompareExchange64, int64_t)
+} int64_t atomic_conditional_increment(volatile int64_t *pw) {
+	ATOMIC_CONDITIONAL_INCREMENT_BODY(pw, LONGLONG, InterlockedCompareExchange64, int64_t)
+}
+bool atomic_bool_compare_and_swap(volatile int64_t *pw, volatile int64_t oldval, volatile int64_t newval) {
+	int64_t val = InterlockedCompareExchange64((LONGLONG volatile *)pw, newval, oldval);
+
+	return val == oldval;
+}
+int64_t atomic_val_compare_and_swap(volatile int64_t *pw, volatile int64_t oldval, volatile int64_t newval) {
+	return InterlockedCompareExchange64((LONGLONG volatile *)pw, newval, oldval);
+}
+
+void atomic_set_ptr(volatile void **ptarget, volatile void *pw) {
+	InterlockedExchangePointer((PVOID volatile *)ptarget, (PVOID)pw);
+}
+bool atomic_bool_compare_and_swap_ptr(volatile void **pw, volatile void *oldval, volatile void *newval) {
+	void *val = InterlockedCompareExchangePointer((PVOID volatile *)pw, (PVOID)newval, (PVOID)oldval);
+
+	return val == oldval;
+}
+void *atomic_val_compare_and_swap_ptr(volatile void **pw, volatile void *oldval, volatile void *newval) {
+	return (void *)InterlockedCompareExchangePointer((PVOID volatile *)pw, (PVOID)newval, (PVOID)oldval);
 }
 
 #endif

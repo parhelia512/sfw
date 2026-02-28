@@ -12,172 +12,7 @@
 #include "core/typedefs.h"
 //--STRIP
 
-#if !defined(NO_THREADS)
-
-#include <atomic>
-#include <type_traits>
-
-// Design goals for these classes:
-// - No automatic conversions or arithmetic operators,
-//   to keep explicit the use of atomics everywhere.
-// - Using acquire-release semantics, even to set the first value.
-//   The first value may be set relaxedly in many cases, but adding the distinction
-//   between relaxed and unrelaxed operation to the interface would make it needlessly
-//   flexible. There's negligible waste in having release semantics for the initial
-//   value and, as an important benefit, you can be sure the value is properly synchronized
-//   even with threads that are already running.
-
-// This is used in very specific areas of the engine where it's critical that these guarantees are held
-#define SAFE_NUMERIC_TYPE_PUN_GUARANTEES(m_type)                        \
-	static_assert(sizeof(SafeNumeric<m_type>) == sizeof(m_type), "");   \
-	static_assert(alignof(SafeNumeric<m_type>) == alignof(m_type), ""); \
-	static_assert(std::is_trivially_destructible<std::atomic<m_type>>::value, "");
-
-#if defined(DEBUG_ENABLED)
-void check_lockless_atomics();
-#endif
-
-template <class T>
-class SafeNumeric {
-	std::atomic<T> value;
-
-public:
-	_ALWAYS_INLINE_ void set(T p_value) {
-		value.store(p_value, std::memory_order_release);
-	}
-
-	_ALWAYS_INLINE_ T get() const {
-		return value.load(std::memory_order_acquire);
-	}
-
-	_ALWAYS_INLINE_ T increment() {
-		return value.fetch_add(1, std::memory_order_acq_rel) + 1;
-	}
-
-	// Returns the original value instead of the new one
-	_ALWAYS_INLINE_ T postincrement() {
-		return value.fetch_add(1, std::memory_order_acq_rel);
-	}
-
-	_ALWAYS_INLINE_ T decrement() {
-		return value.fetch_sub(1, std::memory_order_acq_rel) - 1;
-	}
-
-	// Returns the original value instead of the new one
-	_ALWAYS_INLINE_ T postdecrement() {
-		return value.fetch_sub(1, std::memory_order_acq_rel);
-	}
-
-	_ALWAYS_INLINE_ T add(T p_value) {
-		return value.fetch_add(p_value, std::memory_order_acq_rel) + p_value;
-	}
-
-	// Returns the original value instead of the new one
-	_ALWAYS_INLINE_ T postadd(T p_value) {
-		return value.fetch_add(p_value, std::memory_order_acq_rel);
-	}
-
-	_ALWAYS_INLINE_ T sub(T p_value) {
-		return value.fetch_sub(p_value, std::memory_order_acq_rel) - p_value;
-	}
-
-	// Returns the original value instead of the new one
-	_ALWAYS_INLINE_ T postsub(T p_value) {
-		return value.fetch_sub(p_value, std::memory_order_acq_rel);
-	}
-
-	_ALWAYS_INLINE_ T exchange_if_greater(T p_value) {
-		while (true) {
-			T tmp = value.load(std::memory_order_acquire);
-			if (tmp >= p_value) {
-				return tmp; // already greater, or equal
-			}
-			if (value.compare_exchange_weak(tmp, p_value, std::memory_order_acq_rel)) {
-				return p_value;
-			}
-		}
-	}
-
-	_ALWAYS_INLINE_ T conditional_increment() {
-		while (true) {
-			T c = value.load(std::memory_order_acquire);
-			if (c == 0) {
-				return 0;
-			}
-			if (value.compare_exchange_weak(c, c + 1, std::memory_order_acq_rel)) {
-				return c + 1;
-			}
-		}
-	}
-
-	_ALWAYS_INLINE_ bool compare_exchange_weak(T &p_expected, T p_desired) {
-		return value.compare_exchange_weak(p_expected, p_desired, std::memory_order_acq_rel);
-	}
-
-	_ALWAYS_INLINE_ bool compare_exchange_strong(T &p_expected, T p_desired) {
-		return value.compare_exchange_strong(p_expected, p_desired, std::memory_order_acq_rel);
-	}
-
-	_ALWAYS_INLINE_ explicit SafeNumeric(T p_value = static_cast<T>(0)) {
-		set(p_value);
-	}
-};
-
-class SafeFlag {
-	std::atomic_bool flag;
-
-public:
-	_ALWAYS_INLINE_ bool is_set() const {
-		return flag.load(std::memory_order_acquire);
-	}
-
-	_ALWAYS_INLINE_ void set() {
-		flag.store(true, std::memory_order_release);
-	}
-
-	_ALWAYS_INLINE_ void clear() {
-		flag.store(false, std::memory_order_release);
-	}
-
-	_ALWAYS_INLINE_ void set_to(bool p_value) {
-		flag.store(p_value, std::memory_order_release);
-	}
-
-	_ALWAYS_INLINE_ explicit SafeFlag(bool p_value = false) {
-		set_to(p_value);
-	}
-};
-
-class SafeRefCount {
-	SafeNumeric<uint32_t> count;
-
-public:
-	_ALWAYS_INLINE_ bool ref() { // true on success
-		return count.conditional_increment() != 0;
-	}
-
-	_ALWAYS_INLINE_ uint32_t refval() { // none-zero on success
-		return count.conditional_increment();
-	}
-
-	_ALWAYS_INLINE_ bool unref() { // true if must be disposed of
-		return count.decrement() == 0;
-	}
-
-	_ALWAYS_INLINE_ uint32_t unrefval() { // 0 if must be disposed of
-		return count.decrement();
-	}
-
-	_ALWAYS_INLINE_ uint32_t get() const {
-		return count.get();
-	}
-
-	_ALWAYS_INLINE_ void init(uint32_t p_value = 1) {
-		count.set(p_value);
-	}
-};
-
-#else
+#ifdef NO_THREADS
 
 template <class T>
 class SafeNumeric {
@@ -288,6 +123,16 @@ public:
 		flag = p_value;
 	}
 
+	_ALWAYS_INLINE_ bool test_and_set() {
+		if (flag) {
+			return false;
+		}
+
+		flag = true;
+
+		return true;
+	}
+
 	_ALWAYS_INLINE_ explicit SafeFlag(bool p_value = false) :
 			flag(p_value) {}
 };
@@ -332,6 +177,450 @@ public:
 	SafeRefCount() :
 			count(0) {}
 };
+
+#elif defined(__GNUC__)
+
+template <class T>
+class SafeNumeric {
+	T _value;
+
+public:
+	_ALWAYS_INLINE_ void set(T p_value) {
+		while (!__sync_bool_compare_and_swap(&_value, _value, p_value)) {
+		}
+	}
+
+	_ALWAYS_INLINE_ T get() const {
+		return _value;
+	}
+
+	_ALWAYS_INLINE_ T increment() {
+		return __sync_add_and_fetch(&_value, 1);
+	}
+
+	// Returns the original value instead of the new one
+	_ALWAYS_INLINE_ T postincrement() {
+		return __sync_fetch_and_add(&_value, 1);
+	}
+
+	_ALWAYS_INLINE_ T decrement() {
+		return __sync_sub_and_fetch(&_value, 1);
+	}
+
+	// Returns the original value instead of the new one
+	_ALWAYS_INLINE_ T postdecrement() {
+		return __sync_fetch_and_sub(&_value, 1);
+	}
+
+	_ALWAYS_INLINE_ T add(T p_value) {
+		return __sync_add_and_fetch(&_value, p_value);
+	}
+
+	// Returns the original value instead of the new one
+	_ALWAYS_INLINE_ T postadd(T p_value) {
+		return __sync_fetch_and_add(&_value, p_value);
+	}
+
+	_ALWAYS_INLINE_ T sub(T p_value) {
+		return __sync_sub_and_fetch(&_value, p_value);
+	}
+
+	// Returns the original value instead of the new one
+	_ALWAYS_INLINE_ T postsub(T p_value) {
+		return __sync_fetch_and_sub(&_value, p_value);
+	}
+
+	_ALWAYS_INLINE_ T exchange_if_greater(T p_value) {
+		while (true) {
+			T tmp = static_cast<T const volatile &>(_value);
+
+			if (tmp >= _value) {
+				return tmp; // already greater, or equal
+			}
+
+			if (__sync_val_compare_and_swap(&_value, tmp, _value) == tmp) {
+				return _value;
+			}
+		}
+	}
+
+	_ALWAYS_INLINE_ T conditional_increment() {
+		while (true) {
+			T tmp = static_cast<T const volatile &>(_value);
+
+			if (tmp == 0) {
+				return 0;
+			}
+
+			if (__sync_val_compare_and_swap(&_value, tmp, tmp + 1) == tmp) {
+				return tmp + 1;
+			}
+		}
+	}
+
+	_ALWAYS_INLINE_ bool compare_exchange_weak(T &p_expected, T p_desired) {
+		p_expected = __sync_val_compare_and_swap(&_value, p_expected, p_desired);
+
+		return p_expected == p_desired;
+	}
+
+	_ALWAYS_INLINE_ bool compare_exchange_strong(T &p_expected, T p_desired) {
+		p_expected = __sync_val_compare_and_swap(&_value, p_expected, p_desired);
+
+		return p_expected == p_desired;
+	}
+
+	_ALWAYS_INLINE_ explicit SafeNumeric(T p_value = static_cast<T>(0)) {
+		_value = p_value;
+	}
+};
+
+class SafeFlag {
+	bool _flag;
+
+public:
+	_ALWAYS_INLINE_ bool is_set() const {
+		return _flag;
+	}
+
+	_ALWAYS_INLINE_ void set() {
+		while (true) {
+			bool tmp = static_cast<bool const volatile &>(_flag);
+
+			if (tmp) {
+				return;
+			}
+
+			if (__sync_bool_compare_and_swap(&_flag, tmp, true)) {
+				return;
+			}
+		}
+	}
+
+	_ALWAYS_INLINE_ void clear() {
+		while (true) {
+			bool tmp = static_cast<bool const volatile &>(_flag);
+
+			if (!tmp) {
+				return;
+			}
+
+			if (__sync_bool_compare_and_swap(&_flag, tmp, false)) {
+				return;
+			}
+		}
+	}
+
+	_ALWAYS_INLINE_ void set_to(bool p_value) {
+		while (true) {
+			bool tmp = static_cast<bool const volatile &>(_flag);
+
+			if (tmp == p_value) {
+				return;
+			}
+
+			if (__sync_bool_compare_and_swap(&_flag, tmp, p_value)) {
+				return;
+			}
+		}
+	}
+
+	_ALWAYS_INLINE_ bool test_and_set() {
+		bool tmp = static_cast<bool const volatile &>(_flag);
+
+		if (tmp) {
+			return false;
+		}
+
+		return __sync_bool_compare_and_swap(&_flag, tmp, true);
+	}
+
+	_ALWAYS_INLINE_ explicit SafeFlag(bool p_value = false) {
+		_flag = p_value;
+	}
+};
+
+class SafeRefCount {
+	SafeNumeric<uint32_t> count;
+
+public:
+	_ALWAYS_INLINE_ bool ref() { // true on success
+		return count.conditional_increment() != 0;
+	}
+
+	_ALWAYS_INLINE_ uint32_t refval() { // none-zero on success
+		return count.conditional_increment();
+	}
+
+	_ALWAYS_INLINE_ bool unref() { // true if must be disposed of
+		return count.decrement() == 0;
+	}
+
+	_ALWAYS_INLINE_ uint32_t unrefval() { // 0 if must be disposed of
+		return count.decrement();
+	}
+
+	_ALWAYS_INLINE_ uint32_t get() const {
+		return count.get();
+	}
+
+	_ALWAYS_INLINE_ void init(uint32_t p_value = 1) {
+		count.set(p_value);
+	}
+};
+
+#elif defined(_MSC_VER)
+
+// For MSVC use a separate compilation unit to prevent windows.h from polluting
+// the global namespace.
+
+void atomic_set(volatile uint32_t *ptarget, volatile uint32_t pw);
+uint32_t atomic_add(volatile uint32_t *pw, volatile uint32_t val);
+uint32_t atomic_post_add(volatile uint32_t *pw, volatile uint32_t val);
+uint32_t atomic_sub(volatile uint32_t *pw, volatile uint32_t val);
+uint32_t atomic_post_sub(volatile uint32_t *pw, volatile uint32_t val);
+uint32_t atomic_exchange_if_greater(volatile uint32_t *pw, volatile uint32_t val);
+uint32_t atomic_conditional_increment(volatile uint32_t *pw);
+bool atomic_bool_compare_and_swap(volatile uint32_t *pw, volatile uint32_t oldval, volatile uint32_t newval);
+uint32_t atomic_val_compare_and_swap(volatile uint32_t *pw, volatile uint32_t oldval, volatile uint32_t newval);
+
+void atomic_set(volatile int32_t *ptarget, volatile int32_t pw);
+int32_t atomic_add(volatile int32_t *pw, volatile int32_t val);
+int32_t atomic_post_add(volatile int32_t *pw, volatile int32_t val);
+int32_t atomic_sub(volatile int32_t *pw, volatile int32_t val);
+int32_t atomic_post_sub(volatile int32_t *pw, volatile int32_t val);
+int32_t atomic_exchange_if_greater(volatile int32_t *pw, volatile int32_t val);
+int32_t atomic_conditional_increment(volatile int32_t *pw);
+bool atomic_bool_compare_and_swap(volatile int32_t *pw, volatile int32_t oldval, volatile int32_t newval);
+int32_t atomic_val_compare_and_swap(volatile int32_t *pw, volatile int32_t oldval, volatile int32_t newval);
+
+void atomic_set(volatile uint64_t *ptarget, volatile uint64_t pw);
+uint64_t atomic_add(volatile uint64_t *pw, volatile uint64_t val);
+uint64_t atomic_post_add(volatile uint64_t *pw, volatile uint64_t val);
+uint64_t atomic_sub(volatile uint64_t *pw, volatile uint64_t val);
+uint64_t atomic_post_sub(volatile uint64_t *pw, volatile uint64_t val);
+uint64_t atomic_exchange_if_greater(volatile uint64_t *pw, volatile uint64_t val);
+uint64_t atomic_conditional_increment(volatile uint64_t *pw);
+bool atomic_bool_compare_and_swap(volatile uint64_t *pw, volatile uint64_t oldval, volatile uint64_t newval);
+uint64_t atomic_val_compare_and_swap(volatile uint64_t *pw, volatile uint64_t oldval, volatile uint64_t newval);
+
+void atomic_set(volatile int64_t *ptarget, volatile int64_t pw);
+int64_t atomic_add(volatile int64_t *pw, volatile int64_t val);
+int64_t atomic_post_add(volatile int64_t *pw, volatile int64_t val);
+int64_t atomic_sub(volatile int64_t *pw, volatile int64_t val);
+int64_t atomic_post_sub(volatile int64_t *pw, volatile int64_t val);
+int64_t atomic_exchange_if_greater(volatile int64_t *pw, volatile int64_t val);
+int64_t atomic_conditional_increment(volatile int64_t *pw);
+bool atomic_bool_compare_and_swap(volatile int64_t *pw, volatile int64_t oldval, volatile int64_t newval);
+int64_t atomic_val_compare_and_swap(volatile int64_t *pw, volatile int64_t oldval, volatile int64_t newval);
+
+void atomic_set_ptr(volatile void **ptarget, volatile void *pw);
+bool atomic_bool_compare_and_swap_ptr(volatile void **pw, volatile void *oldval, volatile void *newval);
+void *atomic_val_compare_and_swap_ptr(volatile void **pw, volatile void *oldval, volatile void *newval);
+
+template <class T>
+class SafeNumeric {
+	T _value;
+
+public:
+	_ALWAYS_INLINE_ void set(T p_value) {
+		atomic_set((volatile T *)&_value, p_value);
+	}
+
+	_ALWAYS_INLINE_ T get() const {
+		return _value;
+	}
+
+	_ALWAYS_INLINE_ T increment() {
+		return atomic_add((volatile T *)&_value, 1);
+	}
+
+	// Returns the original value instead of the new one
+	_ALWAYS_INLINE_ T postincrement() {
+		return atomic_post_add((volatile T *)&_value, 1);
+	}
+
+	_ALWAYS_INLINE_ T decrement() {
+		return atomic_sub((volatile T *)&_value, 1);
+	}
+
+	// Returns the original value instead of the new one
+	_ALWAYS_INLINE_ T postdecrement() {
+		return atomic_post_sub((volatile T *)&_value, 1);
+	}
+
+	_ALWAYS_INLINE_ T add(T p_value) {
+		return atomic_add((volatile T *)&_value, p_value);
+	}
+
+	// Returns the original value instead of the new one
+	_ALWAYS_INLINE_ T postadd(T p_value) {
+		return atomic_post_add((volatile T *)&_value, p_value);
+	}
+
+	_ALWAYS_INLINE_ T sub(T p_value) {
+		return atomic_sub((volatile T *)&_value, p_value);
+	}
+
+	// Returns the original value instead of the new one
+	_ALWAYS_INLINE_ T postsub(T p_value) {
+		return atomic_post_sub((volatile T *)&_value, p_value);
+	}
+
+	_ALWAYS_INLINE_ T exchange_if_greater(T p_value) {
+		return atomic_exchange_if_greater((volatile T *)&_value, p_value);
+	}
+
+	_ALWAYS_INLINE_ T conditional_increment() {
+		return atomic_conditional_increment((volatile T *)&_value);
+	}
+
+	_ALWAYS_INLINE_ bool compare_exchange_weak(T &p_expected, T p_desired) {
+		p_expected = atomic_val_compare_and_swap((volatile T *)&_value, p_expected, p_desired);
+
+		return p_expected == p_desired;
+	}
+
+	_ALWAYS_INLINE_ bool compare_exchange_strong(T &p_expected, T p_desired) {
+		p_expected = atomic_val_compare_and_swap((volatile T *)&_value, p_expected, p_desired);
+
+		return p_expected == p_desired;
+	}
+
+	_ALWAYS_INLINE_ explicit SafeNumeric(T p_value = static_cast<T>(0)) {
+		_value = p_value;
+	}
+};
+
+// Template partial specialization for pointer types
+template <class T>
+class SafeNumeric<T *> {
+	T *_value;
+
+public:
+	_ALWAYS_INLINE_ void set(T *p_value) {
+		atomic_set_ptr((void *)_value, (void *)p_value);
+	}
+
+	_ALWAYS_INLINE_ T *get() const {
+		return _value;
+	}
+
+	_ALWAYS_INLINE_ bool compare_exchange_weak(T *&p_expected, T *p_desired) {
+		p_expected = (T *)atomic_val_compare_and_swap_ptr((void *)&_value, (void *)p_expected, (void *)p_desired);
+
+		return p_expected == p_desired;
+	}
+
+	_ALWAYS_INLINE_ bool compare_exchange_strong(T *&p_expected, T *p_desired) {
+		p_expected = (T *)atomic_val_compare_and_swap_ptr((void *)&_value, (void *)p_expected, (void *)p_desired);
+
+		return p_expected == p_desired;
+	}
+
+	_ALWAYS_INLINE_ explicit SafeNumeric(T *p_value = nullptr) {
+		_value = p_value;
+	}
+};
+
+class SafeFlag {
+	uint32_t _flag;
+
+public:
+	_ALWAYS_INLINE_ bool is_set() const {
+		return _flag;
+	}
+
+	_ALWAYS_INLINE_ void set() {
+		while (true) {
+			uint32_t tmp = static_cast<uint32_t const volatile &>(_flag);
+
+			if (tmp) {
+				return;
+			}
+
+			if (atomic_bool_compare_and_swap((volatile uint32_t *)&_flag, tmp, 1)) {
+				return;
+			}
+		}
+	}
+
+	_ALWAYS_INLINE_ void clear() {
+		while (true) {
+			uint32_t tmp = static_cast<uint32_t const volatile &>(_flag);
+
+			if (!tmp) {
+				return;
+			}
+
+			if (atomic_bool_compare_and_swap((volatile uint32_t *)&_flag, tmp, 0)) {
+				return;
+			}
+		}
+	}
+
+	_ALWAYS_INLINE_ void set_to(bool p_value) {
+		while (true) {
+			uint32_t tmp = static_cast<uint32_t const volatile &>(_flag);
+
+			if (tmp == (p_value ? 1 : 0)) {
+				return;
+			}
+
+			if (atomic_bool_compare_and_swap((volatile uint32_t *)&_flag, tmp, p_value ? 1 : 0)) {
+				return;
+			}
+		}
+	}
+
+	_ALWAYS_INLINE_ bool test_and_set() {
+		uint32_t tmp = static_cast<uint32_t const volatile &>(_flag);
+
+		if (tmp) {
+			return false;
+		}
+
+		return atomic_bool_compare_and_swap((volatile uint32_t *)&_flag, tmp, 1);
+	}
+
+	_ALWAYS_INLINE_ explicit SafeFlag(bool p_value = false) {
+		_flag = p_value ? 1 : 0;
+	}
+};
+
+class SafeRefCount {
+	SafeNumeric<uint32_t> count;
+
+public:
+	_ALWAYS_INLINE_ bool ref() { // true on success
+		return count.conditional_increment() != 0;
+	}
+
+	_ALWAYS_INLINE_ uint32_t refval() { // none-zero on success
+		return count.conditional_increment();
+	}
+
+	_ALWAYS_INLINE_ bool unref() { // true if must be disposed of
+		return count.decrement() == 0;
+	}
+
+	_ALWAYS_INLINE_ uint32_t unrefval() { // 0 if must be disposed of
+		return count.decrement();
+	}
+
+	_ALWAYS_INLINE_ uint32_t get() const {
+		return count.get();
+	}
+
+	_ALWAYS_INLINE_ void init(uint32_t p_value = 1) {
+		count.set(p_value);
+	}
+};
+
+#else
+
+//no threads supported?
+#error Must provide atomic functions for this platform or compiler!
 
 #endif
 
