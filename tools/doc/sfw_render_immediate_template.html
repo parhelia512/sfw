@@ -19,6 +19,8 @@ CORE
 Use <code lang=C++>SFWCore::setup();</code> to initialize the library.
 This is necessary as some components (Like PoolVector, and StringNames.) need additional setup.
 
+It also sets up the main thread id for Thread.
+
 Use <code lang=C++>SFWCore::cleanup();</code> to de-initialize the library.
 
 Note that if you use the Application class, it's constructor will do this for you automatically.

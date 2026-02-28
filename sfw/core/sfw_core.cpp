@@ -4,6 +4,8 @@
 
 #include "core/pool_vector.h"
 #include "core/string_name.h"
+
+#include "core/thread.h"
 //--STRIP
 
 void SFWCore::setup() {
@@ -12,6 +14,8 @@ void SFWCore::setup() {
 	}
 
 	_initialized = true;
+
+	Thread::setup_main_thread_id(Thread::get_caller_id());
 
 	StringName::setup();
 	MemoryPool::setup();
