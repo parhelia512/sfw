@@ -19,7 +19,6 @@
 #endif
 
 #endif
-
 //--STRIP
 
 #if !defined(NO_THREADS)

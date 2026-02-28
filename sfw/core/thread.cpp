@@ -19,7 +19,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
-
 //--STRIP
 
 #if defined(_WIN64) || defined(_WIN32)
