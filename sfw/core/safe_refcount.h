@@ -102,6 +102,43 @@ public:
 	}
 };
 
+// Template for atomic pointer types
+template <class T>
+class SafePointer {
+	T _value;
+
+public:
+	_ALWAYS_INLINE_ void set(T p_value) {
+		_value = p_value;
+	}
+
+	_ALWAYS_INLINE_ T get() const {
+		return _value;
+	}
+
+	_ALWAYS_INLINE_ bool compare_exchange_weak(T &p_expected, T p_desired) {
+		if (_value == p_expected) {
+			_value = p_desired;
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	_ALWAYS_INLINE_ bool compare_exchange_strong(T &p_expected, T p_desired) {
+		if (_value == p_expected) {
+			_value = p_desired;
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	_ALWAYS_INLINE_ explicit SafePointer(T p_value = nullptr) {
+		_value = p_value;
+	}
+};
+
 class SafeFlag {
 protected:
 	bool flag;
@@ -186,12 +223,19 @@ class SafeNumeric {
 
 public:
 	_ALWAYS_INLINE_ void set(T p_value) {
-		while (!__sync_bool_compare_and_swap(&_value, _value, p_value)) {
-		}
+		// Hack for gcc having no plain store with the old syncs.
+		// If this ends up having issues on some platforms, a spinlock can be implemented.
+		// But people seems to use this as a set operation, so it's linkely not going to be an issue.
+		// Gcc docs:
+		// Many targets have only minimal support for such locks, and do not support a full exchange operation. In this case, a target may
+		// support reduced functionality here by which the only valid value to store is the immediate constant 1.
+		// The exact value actually stored in *ptr is implementation defined.
+		__sync_lock_test_and_set(&_value, p_value);
 	}
 
 	_ALWAYS_INLINE_ T get() const {
-		return _value;
+		// Hack for gcc having no plain load with the old syncs.
+		return __sync_fetch_and_add((volatile T *)&_value, 0);
 	}
 
 	_ALWAYS_INLINE_ T increment() {
@@ -232,13 +276,13 @@ public:
 
 	_ALWAYS_INLINE_ T exchange_if_greater(T p_value) {
 		while (true) {
-			T tmp = static_cast<T const volatile &>(_value);
+			T tmp = get();
 
 			if (tmp >= _value) {
 				return tmp; // already greater, or equal
 			}
 
-			if (__sync_val_compare_and_swap(&_value, tmp, _value) == tmp) {
+			if (__sync_bool_compare_and_swap(&_value, tmp, _value)) {
 				return _value;
 			}
 		}
@@ -246,52 +290,100 @@ public:
 
 	_ALWAYS_INLINE_ T conditional_increment() {
 		while (true) {
-			T tmp = static_cast<T const volatile &>(_value);
+			T tmp = get();
 
 			if (tmp == 0) {
 				return 0;
 			}
 
-			if (__sync_val_compare_and_swap(&_value, tmp, tmp + 1) == tmp) {
+			if (__sync_bool_compare_and_swap(&_value, tmp, tmp + 1)) {
 				return tmp + 1;
 			}
 		}
 	}
 
 	_ALWAYS_INLINE_ bool compare_exchange_weak(T &p_expected, T p_desired) {
+		T old_value = p_expected;
+
 		p_expected = __sync_val_compare_and_swap(&_value, p_expected, p_desired);
 
-		return p_expected == p_desired;
+		return p_expected == old_value;
 	}
 
 	_ALWAYS_INLINE_ bool compare_exchange_strong(T &p_expected, T p_desired) {
+		T old_value = p_expected;
+
 		p_expected = __sync_val_compare_and_swap(&_value, p_expected, p_desired);
 
-		return p_expected == p_desired;
+		return p_expected == old_value;
 	}
 
 	_ALWAYS_INLINE_ explicit SafeNumeric(T p_value = static_cast<T>(0)) {
-		_value = p_value;
+		set(p_value);
+	}
+};
+
+// Template for atomic pointer types
+template <class T>
+class SafePointer {
+	T _value;
+
+public:
+	_ALWAYS_INLINE_ void set(T p_value) {
+		// Hack for gcc having no plain store with the old syncs.
+		// If this ends up having issues on some platforms, a spinlock can be implemented.
+		// But people seems to use this as a set operation, so it's linkely not going to be an issue.
+		// Gcc docs:
+		// Many targets have only minimal support for such locks, and do not support a full exchange operation. In this case, a target may
+		// support reduced functionality here by which the only valid value to store is the immediate constant 1.
+		// The exact value actually stored in *ptr is implementation defined.
+		(void)__sync_lock_test_and_set(&_value, p_value);
+	}
+
+	_ALWAYS_INLINE_ T get() const {
+		__sync_synchronize();
+		return _value;
+	}
+
+	_ALWAYS_INLINE_ bool compare_exchange_weak(T &p_expected, T p_desired) {
+		T old_value = p_expected;
+
+		p_expected = __sync_val_compare_and_swap(&_value, p_expected, p_desired);
+
+		return p_expected == old_value;
+	}
+
+	_ALWAYS_INLINE_ bool compare_exchange_strong(T &p_expected, T p_desired) {
+		T old_value = p_expected;
+
+		p_expected = __sync_val_compare_and_swap(&_value, p_expected, p_desired);
+
+		return p_expected == old_value;
+	}
+
+	_ALWAYS_INLINE_ explicit SafePointer(T p_value = nullptr) {
+		set(p_value);
 	}
 };
 
 class SafeFlag {
-	bool _flag;
+	uint8_t _flag;
 
 public:
 	_ALWAYS_INLINE_ bool is_set() const {
-		return _flag;
+		// Hack for gcc having no plain load with the old syncs.
+		return __sync_fetch_and_add((volatile uint8_t *)&_flag, 0);
 	}
 
 	_ALWAYS_INLINE_ void set() {
 		while (true) {
-			bool tmp = static_cast<bool const volatile &>(_flag);
+			bool tmp = is_set() ? 1 : 0;
 
 			if (tmp) {
 				return;
 			}
 
-			if (__sync_bool_compare_and_swap(&_flag, tmp, true)) {
+			if (__sync_bool_compare_and_swap(&_flag, 0, 1)) {
 				return;
 			}
 		}
@@ -299,44 +391,48 @@ public:
 
 	_ALWAYS_INLINE_ void clear() {
 		while (true) {
-			bool tmp = static_cast<bool const volatile &>(_flag);
+			uint8_t tmp = is_set() ? 1 : 0;
 
 			if (!tmp) {
 				return;
 			}
 
-			if (__sync_bool_compare_and_swap(&_flag, tmp, false)) {
+			if (__sync_bool_compare_and_swap(&_flag, 1, 0)) {
 				return;
 			}
 		}
 	}
 
 	_ALWAYS_INLINE_ void set_to(bool p_value) {
-		while (true) {
-			bool tmp = static_cast<bool const volatile &>(_flag);
+		uint8_t vi = p_value ? 1 : 0;
 
-			if (tmp == p_value) {
+		while (true) {
+			uint8_t tmp = is_set() ? 1 : 0;
+
+			if (tmp == vi) {
 				return;
 			}
 
-			if (__sync_bool_compare_and_swap(&_flag, tmp, p_value)) {
+			if (__sync_bool_compare_and_swap(&_flag, tmp, vi)) {
 				return;
 			}
 		}
 	}
 
 	_ALWAYS_INLINE_ bool test_and_set() {
-		bool tmp = static_cast<bool const volatile &>(_flag);
+		bool tmp = is_set();
 
 		if (tmp) {
 			return false;
 		}
 
-		return __sync_bool_compare_and_swap(&_flag, tmp, true);
+		return __sync_bool_compare_and_swap(&_flag, 0, 1);
 	}
 
 	_ALWAYS_INLINE_ explicit SafeFlag(bool p_value = false) {
-		_flag = p_value;
+		_flag = 0;
+
+		set_to(p_value);
 	}
 };
 
@@ -374,6 +470,7 @@ public:
 // For MSVC use a separate compilation unit to prevent windows.h from polluting
 // the global namespace.
 
+uint32_t atomic_load(volatile uint32_t *ptarget);
 void atomic_set(volatile uint32_t *ptarget, volatile uint32_t pw);
 uint32_t atomic_add(volatile uint32_t *pw, volatile uint32_t val);
 uint32_t atomic_post_add(volatile uint32_t *pw, volatile uint32_t val);
@@ -384,6 +481,7 @@ uint32_t atomic_conditional_increment(volatile uint32_t *pw);
 bool atomic_bool_compare_and_swap(volatile uint32_t *pw, volatile uint32_t oldval, volatile uint32_t newval);
 uint32_t atomic_val_compare_and_swap(volatile uint32_t *pw, volatile uint32_t oldval, volatile uint32_t newval);
 
+int32_t atomic_load(volatile int32_t *ptarget);
 void atomic_set(volatile int32_t *ptarget, volatile int32_t pw);
 int32_t atomic_add(volatile int32_t *pw, volatile int32_t val);
 int32_t atomic_post_add(volatile int32_t *pw, volatile int32_t val);
@@ -394,6 +492,7 @@ int32_t atomic_conditional_increment(volatile int32_t *pw);
 bool atomic_bool_compare_and_swap(volatile int32_t *pw, volatile int32_t oldval, volatile int32_t newval);
 int32_t atomic_val_compare_and_swap(volatile int32_t *pw, volatile int32_t oldval, volatile int32_t newval);
 
+uint64_t atomic_load(volatile uint64_t *ptarget);
 void atomic_set(volatile uint64_t *ptarget, volatile uint64_t pw);
 uint64_t atomic_add(volatile uint64_t *pw, volatile uint64_t val);
 uint64_t atomic_post_add(volatile uint64_t *pw, volatile uint64_t val);
@@ -404,6 +503,7 @@ uint64_t atomic_conditional_increment(volatile uint64_t *pw);
 bool atomic_bool_compare_and_swap(volatile uint64_t *pw, volatile uint64_t oldval, volatile uint64_t newval);
 uint64_t atomic_val_compare_and_swap(volatile uint64_t *pw, volatile uint64_t oldval, volatile uint64_t newval);
 
+int64_t atomic_load(volatile int64_t *ptarget);
 void atomic_set(volatile int64_t *ptarget, volatile int64_t pw);
 int64_t atomic_add(volatile int64_t *pw, volatile int64_t val);
 int64_t atomic_post_add(volatile int64_t *pw, volatile int64_t val);
@@ -414,6 +514,7 @@ int64_t atomic_conditional_increment(volatile int64_t *pw);
 bool atomic_bool_compare_and_swap(volatile int64_t *pw, volatile int64_t oldval, volatile int64_t newval);
 int64_t atomic_val_compare_and_swap(volatile int64_t *pw, volatile int64_t oldval, volatile int64_t newval);
 
+void *atomic_load_ptr(volatile void **ptarget);
 void atomic_set_ptr(volatile void **ptarget, volatile void *pw);
 bool atomic_bool_compare_and_swap_ptr(volatile void **pw, volatile void *oldval, volatile void *newval);
 void *atomic_val_compare_and_swap_ptr(volatile void **pw, volatile void *oldval, volatile void *newval);
@@ -428,7 +529,7 @@ public:
 	}
 
 	_ALWAYS_INLINE_ T get() const {
-		return _value;
+		return atomic_load((volatile T *)&_value);
 	}
 
 	_ALWAYS_INLINE_ T increment() {
@@ -476,50 +577,58 @@ public:
 	}
 
 	_ALWAYS_INLINE_ bool compare_exchange_weak(T &p_expected, T p_desired) {
+		T old_value = p_expected;
+
 		p_expected = atomic_val_compare_and_swap((volatile T *)&_value, p_expected, p_desired);
 
-		return p_expected == p_desired;
+		return p_expected == old_value;
 	}
 
 	_ALWAYS_INLINE_ bool compare_exchange_strong(T &p_expected, T p_desired) {
+		T old_value = p_expected;
+
 		p_expected = atomic_val_compare_and_swap((volatile T *)&_value, p_expected, p_desired);
 
-		return p_expected == p_desired;
+		return p_expected == old_value;
 	}
 
 	_ALWAYS_INLINE_ explicit SafeNumeric(T p_value = static_cast<T>(0)) {
-		_value = p_value;
+		set(p_value);
 	}
 };
 
-// Template partial specialization for pointer types
+// Template for atomic pointer types
 template <class T>
-class SafeNumeric<T *> {
-	T *_value;
+class SafePointer {
+	T _value;
 
 public:
-	_ALWAYS_INLINE_ void set(T *p_value) {
-		atomic_set_ptr((void *)_value, (void *)p_value);
+	_ALWAYS_INLINE_ void set(T p_value) {
+		atomic_set_ptr((volatile void **)&_value, (void *)p_value);
 	}
 
-	_ALWAYS_INLINE_ T *get() const {
-		return _value;
+	_ALWAYS_INLINE_ T get() const {
+		return (T)atomic_load_ptr((volatile void **)&_value);
 	}
 
-	_ALWAYS_INLINE_ bool compare_exchange_weak(T *&p_expected, T *p_desired) {
-		p_expected = (T *)atomic_val_compare_and_swap_ptr((void *)&_value, (void *)p_expected, (void *)p_desired);
+	_ALWAYS_INLINE_ bool compare_exchange_weak(T &p_expected, T p_desired) {
+		T old_value = p_expected;
 
-		return p_expected == p_desired;
+		p_expected = (T)atomic_val_compare_and_swap_ptr((volatile void **)&_value, (void *)p_expected, (void *)p_desired);
+
+		return p_expected == old_value;
 	}
 
-	_ALWAYS_INLINE_ bool compare_exchange_strong(T *&p_expected, T *p_desired) {
-		p_expected = (T *)atomic_val_compare_and_swap_ptr((void *)&_value, (void *)p_expected, (void *)p_desired);
+	_ALWAYS_INLINE_ bool compare_exchange_strong(T &p_expected, T p_desired) {
+		T old_value = p_expected;
 
-		return p_expected == p_desired;
+		p_expected = (T)atomic_val_compare_and_swap_ptr((volatile void **)&_value, (void *)p_expected, (void *)p_desired);
+
+		return p_expected == old_value;
 	}
 
-	_ALWAYS_INLINE_ explicit SafeNumeric(T *p_value = nullptr) {
-		_value = p_value;
+	_ALWAYS_INLINE_ explicit SafePointer(T p_value = nullptr) {
+		set(p_value);
 	}
 };
 
@@ -528,12 +637,12 @@ class SafeFlag {
 
 public:
 	_ALWAYS_INLINE_ bool is_set() const {
-		return _flag;
+		return atomic_load((volatile uint32_t *)&_flag);
 	}
 
 	_ALWAYS_INLINE_ void set() {
 		while (true) {
-			uint32_t tmp = static_cast<uint32_t const volatile &>(_flag);
+			uint32_t tmp = is_set() ? 1 : 0;
 
 			if (tmp) {
 				return;
@@ -547,7 +656,7 @@ public:
 
 	_ALWAYS_INLINE_ void clear() {
 		while (true) {
-			uint32_t tmp = static_cast<uint32_t const volatile &>(_flag);
+			uint32_t tmp = is_set() ? 1 : 0;
 
 			if (!tmp) {
 				return;
@@ -561,7 +670,7 @@ public:
 
 	_ALWAYS_INLINE_ void set_to(bool p_value) {
 		while (true) {
-			uint32_t tmp = static_cast<uint32_t const volatile &>(_flag);
+			uint32_t tmp = is_set() ? 1 : 0;
 
 			if (tmp == (p_value ? 1 : 0)) {
 				return;
@@ -574,7 +683,7 @@ public:
 	}
 
 	_ALWAYS_INLINE_ bool test_and_set() {
-		uint32_t tmp = static_cast<uint32_t const volatile &>(_flag);
+		uint32_t tmp = is_set() ? 1 : 0;
 
 		if (tmp) {
 			return false;
@@ -584,7 +693,9 @@ public:
 	}
 
 	_ALWAYS_INLINE_ explicit SafeFlag(bool p_value = false) {
-		_flag = p_value ? 1 : 0;
+		_flag = 0;
+
+		set_to(p_value);
 	}
 };
 
